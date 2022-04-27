@@ -662,7 +662,7 @@ class lumiDist(ABC,discretepdf):
         
     def __del__(self):
         del self.PUDist
-        super( type(self) , self).__del__()
+        #super( type(self) , self).__del__()
 
 class lumiDistSympyLaplace(lumiDist):
     def __init__(self , name : str , vals : dict , max_pu : int):
@@ -729,7 +729,7 @@ class lumiDistNumpy(lumiDist):
 
     @PUDist.deleter
     def PUDist(self):
-        #del self._PUDist
+        del self._PUDist
         pass
 
     
