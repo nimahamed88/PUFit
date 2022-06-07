@@ -452,8 +452,12 @@ class discretepdf:
             g = go.Figure()
         if label is None:
             label = self.name
-            if self.paramName != "":
-                label += ', {0}={1}'.format(self.paramName , param)
+#             if self.paramName != "":
+#                 label += ', {0}={1}'.format(self.paramName , param)
+              
+#             for i in range(1 , len(self._bins)):
+#                 label = 'Lumi bin = {0}'.format(i+1)
+
 
         scatterOpts['y'] = norm*self.allProbs(param)
         if not density:
@@ -668,13 +672,11 @@ class lumiDistSympyLaplace(lumiDist):
     def __init__(self , name : str , vals : dict , max_pu : int):
         super(lumiDistSympyLaplace , self).__init__(name , vals , 0 , max_pu , 0 , 1000 , -1)
         self.l = sympy.Symbol('lumi' , real=True, positive=True)
-        
         array = [(0, self.l < self.min)]
         for l,v in self.vals:
             array.append( (v() , self.l<l.max ) )
         array.append((0 , True ) )
         self.sympyDist = sympy.Piecewise( *array )
-        
         self.sigma = sympy.Symbol('sigma' , real=True, positive=True)
         self.cov_lumi_dist = laplace_transform(self.sympyDist , self.l , self.sigma)[0]
         self.pu_prob_for_sigma = {(-0.5,0.5):parametricValueSympy(self.sigma , self.cov_lumi_dist)}
@@ -698,8 +700,9 @@ class lumiDistSympyLaplace(lumiDist):
 
     @property
     def PUDist(self) -> discretepdf:
+        
         return self._PUDist
-    
+        
     @PUDist.deleter
     def PUDist(self):
         del self._PUDist
@@ -707,7 +710,7 @@ class lumiDistSympyLaplace(lumiDist):
 class lumiDistNumpy(lumiDist):
     def __init__(self , name : str , vals : dict , max_pu : int , xsecs : np.ndarray ,silent=False):
         super(lumiDistNumpy , self).__init__(name , vals , 0 , max_pu , xsecs.min() , xsecs.max() , len(xsecs) )
-        
+#         print(name)
         self.pu_prob_for_sigma = {}
         n_factoriel = 1
         for n in range(self.max_pu+1):
@@ -720,9 +723,11 @@ class lumiDistNumpy(lumiDist):
             self.pu_prob_for_sigma[(n-0.5,n+0.5)] = parametricValueNumpy(xsecs , vals)
 
             if not silent:
-                print(n, sep=',', end=',', flush=True)
+                print(n, sep=',', end=',', flush=True)     
         self._PUDist = discretepdf( "puDist_{0}".format(self.name) , self.pu_prob_for_sigma , "sigma" , parametricValueNumpy)
-
+#         print(self.vals)
+#         print(vals)
+        
     @property
     def PUDist(self) -> discretepdf:
         return self._PUDist
@@ -763,7 +768,6 @@ class SimulationVSPu(discretepdf):
         self._var_bins = var_bins
         var_nbins = len(var_bins)-1
         self._statusBar = tqdm(total=pu_max+2  , postfix="SIMULATION")
-        
         self.pu_bins = {}
         if pu_min == 0: #pu=0 is not simulated
             #pu_vals.append(0)
@@ -789,10 +793,25 @@ class SimulationVSPu(discretepdf):
         pdfInputs = np.transpose( np.array([self.pu_bins[i] for i in pu_vals_np]) )
         super(SimulationVSPu , self).__init__( self.varName ,
                                               {(var_bins[i], var_bins[i+1]):parametricValueNumpy(pu_vals_np , pdfInputs[i] ) for i in range(var_nbins)} ,
-                                              'pu' , parametricValueNumpy)
+                                              'Pu' , parametricValueNumpy)
         self._statusBar.update(1)
         self._statusBar.refresh()
         del self._statusBar
+        #del self.allVarVals
+        #del self.allPUS
+        
+        
+        
+        
+        #for test: legends of pu dist:
+        pu_vals_np = np.array(sorted([i for i in self.pu_bins.keys()]))
+        pdfInputs = np.transpose( np.array([self.pu_bins[i] for i in pu_vals_np]) )
+        super(SimulationVSPu , self).__init__( self.varName ,
+                                              {(var_bins[i], var_bins[i+1]):parametricValueNumpy(pu_vals_np , pdfInputs[i] ) for i in range(var_nbins)} ,
+                                              'pu' , parametricValueNumpy)
+#         self._statusBar.update(1)
+#         self._statusBar.refresh()
+#         del self._statusBar
         #del self.allVarVals
         #del self.allPUS
        
@@ -1191,19 +1210,12 @@ class RunInfo :
             all_lumi_bins += lumi_bin.bins_array
         return sorted(all_lumi_bins)
     
-    def plot_lumi_distribution(self , g=None , subRuns : int = 0 , colorLumiScale : int = 0 , density = True):
-        
-        linecolor = self.correlationColor if colorLumiScale in [4] else self.runColor
-        g = self.lumi_distribution.plot(g=g, scatterOpts=dict(mode='markers',
-                                             marker=self.plotMarkerStyle(colorLumiScale),
-                                                             line=dict(color=linecolor)) , density=density )
-        if subRuns:
-            g.update_layout(legend_xanchor="left" , legend_orientation="h", showlegend=True)
-            for sr in self._subRuns if subRuns > 0 else self._subRunsSameLumiBins:
-                g = sr.plot_lumi_distribution(g, subRuns , colorLumiScale , density=density )
-                
-        return g
-        
+    
+    
+    
+    
+    #00-Simulation plot details:
+    
     def setSimulation(self, sim : SimulationVSPu , sub_runs : bool = True ) :
         njobs = 2*len(self._subRuns)+len(self.lumi_hists) if sub_runs else len(self.lumi_hists)
         colour = 'red' if sub_runs else 'yellow'
@@ -1218,22 +1230,78 @@ class RunInfo :
                 self.predictions.append(sim.predict(lumi_bin))
                 self._statusBar.update(1)
 
-    def plotPUDists(self , xsec:float , g=None) :
-        for lh in self.lumi_hists:
-            if g is None:
-                g = lh.PUDist.plot(param=xsec)
-            else:
-                lh.PUDist.plot(param=xsec , g=g)
+       
+    
+    
+    
+    
+    
+    
+    
+    #01-lumi_distribution plot details:
+    
+    def plot_lumi_distribution(self , g=None , subRuns : int = 0 , colorLumiScale : int = 0 , density = True):
+        
+        linecolor = self.correlationColor if colorLumiScale in [4] else self.runColor
+        g = self.lumi_distribution.plot(g=g, scatterOpts=dict(mode='markers',
+                                             marker=self.plotMarkerStyle(colorLumiScale),
+                                                             line=dict(color=linecolor)) , density=density )
+        if subRuns:
+            g.update_layout(legend_xanchor="left" , legend_orientation="h", showlegend=True)
+            for sr in self._subRuns if subRuns > 0 else self._subRunsSameLumiBins:
+                g = sr.plot_lumi_distribution(g, subRuns , colorLumiScale , density=density )
                 
         return g
+        
+    
+    
+    
+    
+    
+
+   
+
+
+     
+    #02-pu_distribution plot details:
+            
+    
+    def plotPUDists(self , xsec:float , g=None) :
+        m = 1
+        for lh in self.lumi_hists:
+            theName = "Lumi bin = {0}".format(m)
+            m += 1
+            if g is None:
+                g = lh.PUDist.plot(param=xsec , scatterOpts={'name' : theName})
+            else:
+                lh.PUDist.plot(param=xsec , g=g , scatterOpts={'name' : theName})
+        g.update_layout(
+        title="PU distribution for sigma = 70",
+        xaxis_title='number of PU',
+        yaxis_title="probability",
+        legend_title="Luminosity bins"
+        )                
+        return g
+    
+    
+    
+    
+    
+    
+    #03-vname_distribution plot details
+    
+    
     
     def plotDataDist(self , g=None , zoom = True):
+        n = self.nLumiBins
         if self.parentRun is None:
-            g = make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2)
+            g = make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2 , 
+                              subplot_titles = ['Lumi bin = {0}'.format(i+1) for i in np.arange(len(self.lumi_hists))]
+                             )
         row = 1
         col = 1
         for dh in self.data_hists:
-            theName = "Run {0}".format(self.run) if row*col == 1 else "Run {0}{1}".format(self.run, row*2+col-3)
+            theName = "Run {0}".format(self.run) 
             dh.plot(g=g , barmode=not self.parentRun is None , traceOpts={'row':row, 'col':col} , trimZeros=zoom,
                     scatterOpts={'marker_color':self.runColor , 'name':theName , 'legendgroup':"Run {0}".format(self.run) , 'showlegend':row*col==1})
             col += 1
@@ -1243,30 +1311,79 @@ class RunInfo :
         for sr in self._subRunsSameLumiBins:
             sr.plotDataDist(g)
         g.update_layout(barmode='stack')
+        
+        g.update_layout(
+        title=' {0} distribution for {1} different lumi bins'.format(self._vname , n),
+        legend_title="Runs",
+        )
+
+        for dh in self.data_hists:
+            g.update_yaxes(title_text= self._vname  , showgrid=False)
+            g.update_xaxes(title_text="PU", showgrid=False)
+        
+        
         return g
     
+    
+    
+    
+    
+    
+    #04-vname_predictions plot details:     
+    
+    
+    
+    
     def plotPredictions(self , xsecs:list ):
-        fig = make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2)
+        n = self.nLumiBins
+        #print('number of luminosity bins = {0}'.format(n))
+        fig = make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2,
+                            subplot_titles = ['Lumi bin = {0}'.format(i+1) for i in np.arange(len(self.lumi_hists))]
+                           )          
+                           
         row = 1
         col = 1
         for pred in self.predictions:
             for xsec in xsecs:
-                theName = "XSec={0}".format(xsec) if row*col == 1 else "XSec{0}{1}".format(xsec, row*2+col-3)
+                theName = "XSec = {0}".format(xsec) 
                 pred.plot(param=xsec , g=fig , traceOpts={'row':row, 'col':col},
                          scatterOpts={'line_color':RunInfo.colorList()[int(xsec*10)%len(RunInfo.colorList())] , 'name':theName , 'legendgroup':"XSection={0}".format(xsec) , 'showlegend':row*col==1})
             col += 1
             if col == 3:
                 col = 1
                 row += 1
+
+                
+        fig.update_layout(
+        title="PU prediction for different cross sections in {0} different lumi bins ".format(self.nLumiBins),
+        legend_title="Different Cross Sections",
+        )
+
+        for pred in self.predictions:
+            fig.update_yaxes(title_text="Probability", showgrid=False)
+            fig.update_xaxes(title_text="PU", showgrid=False)
         return fig
 
+    
+    
+    
+    
+    
+    
+    
+    #05-vname_predictions plot details:     
+    
+    
+    
     def plotRunPredictions(self , xsec:float , zoom : bool= True , fig = None):
         if self.parentRun is None:
-            fig = make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2)
+            fig = make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2, 
+                                subplot_titles = ['Lumi bin = {0}'.format(i+1) for i in np.arange(len(self.lumi_hists))]
+                               )
         row = 1
         col = 1
         for pred in self.predictions:
-            theName = "Run {0}".format(self.run) if row*col == 1 else "Run{0}{1}".format(self.run, row*2+col-3)
+            theName = "Run {0}".format(self.run)
             pred.plot(param=xsec , g=fig , traceOpts={'row':row, 'col':col}, barmode=not self.parentRun is None , trimZeros=zoom,
                       scatterOpts={'marker_color':self.runColor , 'name':theName ,
                                    'legendgroup':"Run {0}".format(self.run) , 'showlegend':row*col==1}, norm=self.nTotal )
@@ -1276,36 +1393,61 @@ class RunInfo :
                 row += 1
         for sr in self._subRunsSameLumiBins:
             sr.plotRunPredictions(xsec , zoom , fig)
-        fig.update_layout(barmode='stack')
+            
+        fig.update_layout(
+        title= ' {0} prediction for Xsec = {1} '.format(self._vname , xsec) ,
+        legend_title="Runs",
+        )
+        for pred in self.predictions:
+            fig.update_yaxes(title_text= self._vname , showgrid=False)
+            fig.update_xaxes(title_text="PU", showgrid=False)
         return fig
 
     
+    
+    
+    
+    #06 - bestfit plot details:
+    
     def fit(self , sub_runs = True , g = None ):
+        rows=self.nLumiBins+3
+        cols = 3
+        
         if g is None:
-            g = make_subplots(rows=self.nLumiBins+3 , cols = 3 ,
+            g = make_subplots(rows = rows , cols = cols , 
+                              subplot_titles = ['Cross Section best fit for each Lumi bin' for i in range (3) and 'y' for i in range(3,6)] ,
                               specs=[ [{'colspan':3}, None , None] , [{'colspan':3}, None , None] , [{'colspan':3}, None , None] ] + self.nLumiBins*[ [{},{},{}] ] )
-            g.update_layout(height=(self.nLumiBins+3)*400, width=1200, title_text="chi2 values")
+            
+            g.update_layout(height=(self.nLumiBins+3)*400, width=1200, title_text="Best fit & chi2 values for Cross Section" , legend_title="Runs",)
+        #runInfo:    
+        
         if sub_runs:
+            print('number of Runs = {0}'.format(len(self._subRuns)))
+            print('Number of Lumi Bins = {0}'.format(self.nLumiBins))
             njobs = 2*len(self._subRuns)+1
-            colour = 'red' if sub_runs else 'yellow'
+            colour = 'red' if sub_runs else 'yellow' #color of subRuns
 
             self._statusBar = tqdm(total=njobs  , postfix="RUN {0}".format(self.run) , colour=colour)
             with ThreadPoolExecutor(self.nthreads) as p:
                 p.map( RunInfo.doFit , [(r , g , self) for r in self._subRuns+[self]+self._subRunsSameLumiBins ] )
             self._statusBar.refresh()
+
         else:
             self.fitResults = []
             finalres = {'x':[] , 'y':[] , 'ex':[] , 'ey':[]}
             theName_ = "Run {0}".format(self.run)
 
             run_fig_index = 1 + (1 if self._isSecondHand else 0) + (2 if self.parentRun is None else 0)
+
+            #for chi2 plot:
+            
             for i in range(self.nLumiBins):
                 theName = theName_.format( "" if i == 0 else i+1)
                 pred = self.predictions[i]
                 data = self.data_hists[i]
                 chi2 = pred.chi2(data , self.xsecs)
                 self.fitResults.append(chi2)
-                chi2.plot(g=g , traceOpts={'row':i+1+3, 'col':run_fig_index} ,
+                chi2.plot(g=g , traceOpts={'row':i+1+3, 'col':run_fig_index} , 
                           scatterOpts={'marker_color':self.runColor , 'name':theName ,
                                        'legendgroup':"Run {0}".format(self.run) , 'showlegend':i==1 and run_fig_index>1})
 
@@ -1314,6 +1456,9 @@ class RunInfo :
 
                 finalres['y'].append( chi2.bestFit )
                 finalres['ey'].append( chi2.bestFitError )
+#                 for row, subfig in enumerate(g):
+#                     g.update_yaxes(title_text= 'Chi2 Value' , showgrid=False)
+#                     g.update_xaxes(title_text="CrossSection", showgrid=False)
 
             additiona_trace_opt = {}
             if any([ey>10 for ey in finalres['ey'] ]):
@@ -1323,8 +1468,108 @@ class RunInfo :
                         error_y=dict(type='data',array=finalres["ey"],visible=True), mode='markers',
                                       marker_color=self.runColor , name=theName_.format("BestFits"),
                                       legendgroup="Run {0}".format(self.run) , showlegend=False , **additiona_trace_opt), row=run_fig_index, col=1 )
+#             g.update_yaxes(title_text= 'Chi2 Value' , showgrid=False)
+#             g.update_xaxes(title_text="CrossSection", showgrid=False)
 
+#         g.update_yaxes( "" if row == 1 else "hi"  )
+        
         return g
+    
+    
+#         def fit(self , sub_runs = True , g = None ):
+#         rows=self.nLumiBins+3
+#         cols = 3
+        
+#         if g is None:
+#             g = make_subplots(rows = rows , cols = cols , 
+#                               subplot_titles = ['Cross Section best fit for each Lumi bin' for i in range (3) and 'y' for i in range(3,6)] ,
+#                               specs=[ [{'colspan':3}, None , None] , [{'colspan':3}, None , None] , [{'colspan':3}, None , None] ] + self.nLumiBins*[ [{},{},{}] ] )
+            
+#             g.update_layout(height=(self.nLumiBins+3)*400, width=1200, title_text="Best fit & chi2 values for Cross Section" , legend_title="Runs",)
+#         #runInfo:    
+        
+#         if sub_runs:
+#             print('number of Runs = {0}'.format(len(self._subRuns)))
+#             print('Number of Lumi Bins = {0}'.format(self.nLumiBins))
+#             njobs = 2*len(self._subRuns)+1
+#             colour = 'red' if sub_runs else 'yellow' #color of subRuns
+
+#             self._statusBar = tqdm(total=njobs  , postfix="RUN {0}".format(self.run) , colour=colour)
+#             with ThreadPoolExecutor(self.nthreads) as p:
+#                 p.map( RunInfo.doFit , [(r , g , self) for r in self._subRuns+[self]+self._subRunsSameLumiBins ] )
+#             self._statusBar.refresh()
+
+#         else:
+#             self.fitResults = []
+#             finalres = {'x':[] , 'y':[] , 'ex':[] , 'ey':[]}
+#             theName_ = "Run {0}".format(self.run)
+
+#             run_fig_index = 1 + (1 if self._isSecondHand else 0) + (2 if self.parentRun is None else 0)
+
+#             #for chi2 plot:
+            
+#             for i in range(self.nLumiBins):
+#                 theName = theName_.format( "" if i == 0 else i+1)
+#                 pred = self.predictions[i]
+#                 data = self.data_hists[i]
+#                 chi2 = pred.chi2(data , self.xsecs)
+#                 self.fitResults.append(chi2)
+#                 chi2.plot(g=g , traceOpts={'row':i+1+3, 'col':run_fig_index} , 
+#                           scatterOpts={'marker_color':self.runColor , 'name':theName ,
+#                                        'legendgroup':"Run {0}".format(self.run) , 'showlegend':i==1 and run_fig_index>1})
+
+#                 finalres['x'].append( (self.lumi_hists[i].max+self.lumi_hists[i].min)/2 )
+#                 finalres['ex'].append( (self.lumi_hists[i].max-self.lumi_hists[i].min)/2 )
+
+#                 finalres['y'].append( chi2.bestFit )
+#                 finalres['ey'].append( chi2.bestFitError )
+# #                 for row, subfig in enumerate(g):
+# #                     g.update_yaxes(title_text= 'Chi2 Value' , showgrid=False)
+# #                     g.update_xaxes(title_text="CrossSection", showgrid=False)
+
+#             additiona_trace_opt = {}
+#             if any([ey>10 for ey in finalres['ey'] ]):
+#                 additiona_trace_opt['visible']='legendonly'
+#             g.add_trace(go.Scatter(x=finalres["x"], y=finalres["y"],
+#                         error_x=dict(type='data',array=finalres["ex"],visible=self.parentRun is None),
+#                         error_y=dict(type='data',array=finalres["ey"],visible=True), mode='markers',
+#                                       marker_color=self.runColor , name=theName_.format("BestFits"),
+#                                       legendgroup="Run {0}".format(self.run) , showlegend=False , **additiona_trace_opt), row=run_fig_index, col=1 )
+# #             g.update_yaxes(title_text= 'Chi2 Value' , showgrid=False)
+# #             g.update_xaxes(title_text="CrossSection", showgrid=False)
+
+# #         g.update_yaxes( "" if row == 1 else "hi"  )
+        
+#         return g
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    #07-postFit plots details
     
     def postFitPlots(self):
         fig = make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2)
@@ -1345,6 +1590,13 @@ class RunInfo :
         fig.update_layout(showlegend=False)
         return fig
 
+    
+    
+    
+    
+    
+    #08-pullPlots plots details
+    
     def pullPlots(self , maxtoshow=25 , smoothing=1.3):
         fig = go.Figure() #make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2)
         
@@ -1372,6 +1624,13 @@ class RunInfo :
         #fig.update_layout(showlegend=False)
         return fig
 
+    
+    
+    
+    
+    
+    #08-NadjiehPullPlots plots details
+    
     def NadjiehPullPlots(self , maxtoshow=25 , smoothing=1.3):
         fig = go.Figure() #make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2)
 
@@ -1411,6 +1670,15 @@ class RunInfo :
         #fig.update_layout(showlegend=False)
         return fig
  
+
+
+
+
+
+
+
+
+
 
     @property
     def nVarBins(self):
@@ -1499,7 +1767,9 @@ class RunInfo :
     
     @property
     def nLumiBins(self) -> int:
+        #print(len(self.lumi_hists))
         return len(self.lumi_hists)
+
     @property
     def filename(self) -> str:
         return '/eos/user/c/cmstandi/PURunIIFiles/R{0}/all.root'.format(self.run)
