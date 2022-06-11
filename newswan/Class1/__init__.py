@@ -989,7 +989,8 @@ class RunInfo :
             self._statusBar.set_description('q{0}, {1} dist'.format( q_i , vname).ljust(RunInfo.progress_bar_des_l))
             seletedOnes = (lumi_vals < lumiBin.max) & (lumi_vals > lumiBin.min)
             h2 = np.histogram(varVals[seletedOnes] , bins=vbins)
-            self.data_hists.append(discretepdf('h{0}_r{1}_q{2}'.format(vname,run,q_i),
+            #legends for 07-postFit_plots
+            self.data_hists.append(discretepdf('data: {0}_run{1}_lumi{2}'.format(vname,run,q_i+1),
                                                {(h2[1][i],h2[1][i+1]):float(h2[0][i]) for i in range(len(h2[0]))} ,
                                                unity=False ) )
             
@@ -1318,8 +1319,8 @@ class RunInfo :
         )
 
         for dh in self.data_hists:
-            g.update_yaxes(title_text= self._vname  , showgrid=False)
-            g.update_xaxes(title_text="PU", showgrid=False)
+            g.update_yaxes(title_text= self._vname )
+            g.update_xaxes(title_text="PU")
         
         
         return g
@@ -1359,9 +1360,8 @@ class RunInfo :
         legend_title="Different Cross Sections",
         )
 
-        for pred in self.predictions:
-            fig.update_yaxes(title_text="Probability", showgrid=False)
-            fig.update_xaxes(title_text="PU", showgrid=False)
+        fig.update_yaxes(title_text="Probability")
+        fig.update_xaxes(title_text="PU")
         return fig
 
     
@@ -1398,9 +1398,8 @@ class RunInfo :
         title= ' {0} prediction for Xsec = {1} '.format(self._vname , xsec) ,
         legend_title="Runs",
         )
-        for pred in self.predictions:
-            fig.update_yaxes(title_text= self._vname , showgrid=False)
-            fig.update_xaxes(title_text="PU", showgrid=False)
+        fig.update_yaxes(title_text= self._vname)
+        fig.update_xaxes(title_text="PU")
         return fig
 
     
@@ -1411,19 +1410,46 @@ class RunInfo :
     
     def fit(self , sub_runs = True , g = None ):
         rows=self.nLumiBins+3
+        nplots = (self.nLumiBins*3)+3
         cols = 3
+        K = {}
+        p = 0
+        title1 = "Cross Section Best Fit for each Lumi bin"
+        title2 = "Cross Section Best Fit for each Lumi bin (fixed bins)"
+        title3 = "Cross Section Best Fit for each Lumi bin (Total Runs)"
+#         for j in range (self.nLumiBins)
+#             title = 
+        # اینجای کد را بهتر کنم خیلی زشت هست
+        title4 = "Chi2 Value"
+        K[1] = title1
+        K[2] = title2
+        K[3] = title3
+        p = 3
+        for j in range(1, self.nLumiBins+1):
+            for m in range(1,cols+1):
+                p+=1
+                title = "Chi2 Value for Lumi bin = {0} ".format(j)
+                if m == 1:
+                    n = ''
+                elif m == 2:
+                    n = '(fixed bins)'
+                elif m == 3:
+                    n = '(total runs)'
+                K[p] = title + n
+
         
         if g is None:
             g = make_subplots(rows = rows , cols = cols , 
-                              subplot_titles = ['Cross Section best fit for each Lumi bin' for i in range (3) and 'y' for i in range(3,6)] ,
+                              subplot_titles = [K.get(p) for p in range(1 , nplots+1)] ,
                               specs=[ [{'colspan':3}, None , None] , [{'colspan':3}, None , None] , [{'colspan':3}, None , None] ] + self.nLumiBins*[ [{},{},{}] ] )
             
             g.update_layout(height=(self.nLumiBins+3)*400, width=1200, title_text="Best fit & chi2 values for Cross Section" , legend_title="Runs",)
         #runInfo:    
         
         if sub_runs:
-            print('number of Runs = {0}'.format(len(self._subRuns)))
-            print('Number of Lumi Bins = {0}'.format(self.nLumiBins))
+            
+            
+#             print(K)
             njobs = 2*len(self._subRuns)+1
             colour = 'red' if sub_runs else 'yellow' #color of subRuns
 
@@ -1447,7 +1473,7 @@ class RunInfo :
                 data = self.data_hists[i]
                 chi2 = pred.chi2(data , self.xsecs)
                 self.fitResults.append(chi2)
-                chi2.plot(g=g , traceOpts={'row':i+1+3, 'col':run_fig_index} , 
+                chi2.plot(g=g , traceOpts={'row':i+1+3, 'col':run_fig_index} ,
                           scatterOpts={'marker_color':self.runColor , 'name':theName ,
                                        'legendgroup':"Run {0}".format(self.run) , 'showlegend':i==1 and run_fig_index>1})
 
@@ -1456,112 +1482,33 @@ class RunInfo :
 
                 finalres['y'].append( chi2.bestFit )
                 finalres['ey'].append( chi2.bestFitError )
-#                 for row, subfig in enumerate(g):
-#                     g.update_yaxes(title_text= 'Chi2 Value' , showgrid=False)
-#                     g.update_xaxes(title_text="CrossSection", showgrid=False)
+
 
             additiona_trace_opt = {}
             if any([ey>10 for ey in finalres['ey'] ]):
+                
                 additiona_trace_opt['visible']='legendonly'
+
+            
             g.add_trace(go.Scatter(x=finalres["x"], y=finalres["y"],
                         error_x=dict(type='data',array=finalres["ex"],visible=self.parentRun is None),
                         error_y=dict(type='data',array=finalres["ey"],visible=True), mode='markers',
                                       marker_color=self.runColor , name=theName_.format("BestFits"),
                                       legendgroup="Run {0}".format(self.run) , showlegend=False , **additiona_trace_opt), row=run_fig_index, col=1 )
-#             g.update_yaxes(title_text= 'Chi2 Value' , showgrid=False)
-#             g.update_xaxes(title_text="CrossSection", showgrid=False)
-
-#         g.update_yaxes( "" if row == 1 else "hi"  )
         
+            
+        for i in range(1,3+1):
+            g['layout']['xaxis{0}'.format(i)]['title']='Lumi Bin'
+            g['layout']['yaxis{0}'.format(i)]['title']='Cross Section'
+            
+        for i in range(4,nplots+1):
+            g['layout']['xaxis{0}'.format(i)]['title']='Cross Section'
+            g['layout']['yaxis{0}'.format(i)]['title']='Chi2 Value'
+
         return g
     
     
-#         def fit(self , sub_runs = True , g = None ):
-#         rows=self.nLumiBins+3
-#         cols = 3
-        
-#         if g is None:
-#             g = make_subplots(rows = rows , cols = cols , 
-#                               subplot_titles = ['Cross Section best fit for each Lumi bin' for i in range (3) and 'y' for i in range(3,6)] ,
-#                               specs=[ [{'colspan':3}, None , None] , [{'colspan':3}, None , None] , [{'colspan':3}, None , None] ] + self.nLumiBins*[ [{},{},{}] ] )
-            
-#             g.update_layout(height=(self.nLumiBins+3)*400, width=1200, title_text="Best fit & chi2 values for Cross Section" , legend_title="Runs",)
-#         #runInfo:    
-        
-#         if sub_runs:
-#             print('number of Runs = {0}'.format(len(self._subRuns)))
-#             print('Number of Lumi Bins = {0}'.format(self.nLumiBins))
-#             njobs = 2*len(self._subRuns)+1
-#             colour = 'red' if sub_runs else 'yellow' #color of subRuns
 
-#             self._statusBar = tqdm(total=njobs  , postfix="RUN {0}".format(self.run) , colour=colour)
-#             with ThreadPoolExecutor(self.nthreads) as p:
-#                 p.map( RunInfo.doFit , [(r , g , self) for r in self._subRuns+[self]+self._subRunsSameLumiBins ] )
-#             self._statusBar.refresh()
-
-#         else:
-#             self.fitResults = []
-#             finalres = {'x':[] , 'y':[] , 'ex':[] , 'ey':[]}
-#             theName_ = "Run {0}".format(self.run)
-
-#             run_fig_index = 1 + (1 if self._isSecondHand else 0) + (2 if self.parentRun is None else 0)
-
-#             #for chi2 plot:
-            
-#             for i in range(self.nLumiBins):
-#                 theName = theName_.format( "" if i == 0 else i+1)
-#                 pred = self.predictions[i]
-#                 data = self.data_hists[i]
-#                 chi2 = pred.chi2(data , self.xsecs)
-#                 self.fitResults.append(chi2)
-#                 chi2.plot(g=g , traceOpts={'row':i+1+3, 'col':run_fig_index} , 
-#                           scatterOpts={'marker_color':self.runColor , 'name':theName ,
-#                                        'legendgroup':"Run {0}".format(self.run) , 'showlegend':i==1 and run_fig_index>1})
-
-#                 finalres['x'].append( (self.lumi_hists[i].max+self.lumi_hists[i].min)/2 )
-#                 finalres['ex'].append( (self.lumi_hists[i].max-self.lumi_hists[i].min)/2 )
-
-#                 finalres['y'].append( chi2.bestFit )
-#                 finalres['ey'].append( chi2.bestFitError )
-# #                 for row, subfig in enumerate(g):
-# #                     g.update_yaxes(title_text= 'Chi2 Value' , showgrid=False)
-# #                     g.update_xaxes(title_text="CrossSection", showgrid=False)
-
-#             additiona_trace_opt = {}
-#             if any([ey>10 for ey in finalres['ey'] ]):
-#                 additiona_trace_opt['visible']='legendonly'
-#             g.add_trace(go.Scatter(x=finalres["x"], y=finalres["y"],
-#                         error_x=dict(type='data',array=finalres["ex"],visible=self.parentRun is None),
-#                         error_y=dict(type='data',array=finalres["ey"],visible=True), mode='markers',
-#                                       marker_color=self.runColor , name=theName_.format("BestFits"),
-#                                       legendgroup="Run {0}".format(self.run) , showlegend=False , **additiona_trace_opt), row=run_fig_index, col=1 )
-# #             g.update_yaxes(title_text= 'Chi2 Value' , showgrid=False)
-# #             g.update_xaxes(title_text="CrossSection", showgrid=False)
-
-# #         g.update_yaxes( "" if row == 1 else "hi"  )
-        
-#         return g
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
     
@@ -1572,22 +1519,38 @@ class RunInfo :
     #07-postFit plots details
     
     def postFitPlots(self):
-        fig = make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2)
+        fig = make_subplots(rows=(self.nLumiBins//2) + (self.nLumiBins%2), cols=2,
+                           subplot_titles = ['Lumi bin = {0}'.format(i+1) for i in np.arange(len(self.lumi_hists))]
+                           )
         row = 1
         col = 1
         for i in range(self.nLumiBins):
-            dh = self.data_hists[i]
-            dh.plot(g=fig , traceOpts={'row':row, 'col':col} , 
-                    scatterOpts=dict(mode='markers',marker=dict(color='black',size=6)))
             
+            #data:
+            dh = self.data_hists[i]
+            theName1 = "data for lumi bin = {0}".format(i+1)
+            dh.plot(g=fig , traceOpts={'row':row, 'col':col} , 
+#                     scatterOpts=dict( mode='markers',marker=dict(color='black',size=6 ))
+                    scatterOpts={'mode':'markers' ,'marker_color':'black' , 'marker_size':6  , 'name':theName1 }
+                   )
+            
+            #simulation:
+            theName2 = 'Simulation for lumi bin = {0}'.format(i+1)
             self.predictions[i].plot(param=self.fitResults[i].bestFit , g=fig ,
                                            traceOpts={'row':row, 'col':col} , norm=dh.integral() ,
-                                           scatterOpts=dict(line=dict(color='red')))
+                                           scatterOpts={'line_color':RunInfo.colorList()[int(i*100)%len(RunInfo.colorList())] , 'name':theName2 })
             col += 1
             if col == 3:
                 col = 1
                 row += 1
-        fig.update_layout(showlegend=False)
+        fig.update_layout(
+        title= ' Data Vs. Simulation ' ,
+        legend_title="Value",
+        )
+        fig.update_yaxes(title_text= self._vname)
+        fig.update_xaxes(title_text="PU")
+        
+        
         return fig
 
     
@@ -1602,7 +1565,10 @@ class RunInfo :
         
         row = 1
         col = 1
+        m = 1
         for i in range(self.nLumiBins):
+            theName = "Lumi bin = {0}".format(m)
+            m += 1
             dh = self.data_hists[i]
             norm=int( dh.integral() )
             x = []
@@ -1616,14 +1582,24 @@ class RunInfo :
                 else:
                     yval = (d-pred)/math.sqrt(pred)
                 y.append(min(yval , maxtoshow) )
-            fig.add_trace(go.Scatter(x=x , y=y , mode='lines' , line=dict(shape='spline', smoothing=smoothing)) ) #, row=row, col=col )
+            fig.add_trace(go.Scatter(x=x , y=y , name=theName , mode='lines' , line=dict(shape='spline', smoothing=smoothing)) ) #, row=row, col=col )
             col += 1
             if col == 3:
                 col = 1
                 row += 1
         #fig.update_layout(showlegend=False)
+        
+        fig.update_layout(
+        title="Pull plot for {0}".format(self._vname),
+        xaxis_title='PU',
+        yaxis_title="data - simulation",
+        legend_title="Luminosity bins"
+        )      
+        
+        
         return fig
 
+    
     
     
     
@@ -1636,7 +1612,10 @@ class RunInfo :
 
         row = 1
         col = 1
+        m = 1
         for i in range(self.nLumiBins):
+            theName = "Lumi bin = {0}".format(m)
+            m += 1
             dh = self.data_hists[i]
             norm=int( dh.integral() )
             x = []
@@ -1662,12 +1641,20 @@ class RunInfo :
                         yval = 0
 
                 y.append(min(yval , maxtoshow) )
-            fig.add_trace(go.Scatter(x=x , y=y , mode='lines' , line=dict(shape='spline', smoothing=smoothing)) ) #, row=row, col=col )
+            fig.add_trace(go.Scatter(x=x , y=y , name=theName , mode='lines' , line=dict(shape='spline', smoothing=smoothing)) ) #, row=row, col=col )
             col += 1
             if col == 3:
                 col = 1
                 row += 1
         #fig.update_layout(showlegend=False)
+        
+        fig.update_layout(
+        title="Nadjieh Pull plot for {0}".format(self._vname),
+        xaxis_title='PU',
+        yaxis_title="data - simulation",
+        legend_title="Luminosity bins"
+        )
+        
         return fig
  
 
@@ -1693,6 +1680,48 @@ class RunInfo :
             pred = norm*float( self.predictions[lumibin].p(param=self.fitResults[lumibin].bestFit , val=b) )
             ret += (d-pred)**2/pred
         return ret
+    
+    
+    
+    
+    
+    #summary1
+    
+    def aggregateFitRes(self):
+        _x = []
+        _y = []
+        _yerr = []
+        for i in range(self.nLumiBins):
+            theName = "Run {0}".format(self.run)
+            _x.append( (self.lumi_hists[i].max+self.lumi_hists[i].min)/2 )
+            vs = []
+            ws = []
+            for sr in self._subRunsSameLumiBins:
+                chi2 = sr.fitResults[i]
+                vs.append( chi2.bestFit )
+                ws.append( 1.0/(chi2.bestFitError**2) )
+            vnp , wnp = np.array(vs) , np.array(ws)
+            _y.append( np.average(vnp , weights=wnp) )
+            _yerr.append( math.sqrt( np.average( (vnp-_y[-1])**2 , weights=wnp ) ) )
+        g = go.Figure() 
+        g.add_trace(go.Scatter(x=_x, y=_y, name = theName,
+                        error_y=dict(type='data',array=_yerr,visible=True), mode='lines+markers',
+                                      marker_color=self.runColor) )
+        
+        g.update_layout(
+        title="best fit for cross section (total runs)",
+        xaxis_title='Lumi Bin',
+        yaxis_title="Cross Section",
+        legend_title="Runs"
+        )
+        return g
+    
+    
+    
+    
+    
+    #summary2
+    
 
     def aggregateFitRes2(self):
         _x_y = {}
@@ -1742,28 +1771,21 @@ class RunInfo :
         g.add_trace(go.Scatter(x=_x, y=_y,
                         error_y=dict(type='data',array=_yerr,visible=True), mode='markers',
                                       marker_color=color , marker_colorscale=RunInfo.colorscale , marker_colorbar = dict(title="correlation") ) )
+        
+        
+        g.update_layout(
+        title="best fit for cross section (total runs) + correlation",
+        xaxis_title='Lumi Bin',
+        yaxis_title="Cross Section",
+        legend_title="Runs"
+        )
+        
         return g
 
-    def aggregateFitRes(self):
-        _x = []
-        _y = []
-        _yerr = []
-        for i in range(self.nLumiBins):
-            _x.append( (self.lumi_hists[i].max+self.lumi_hists[i].min)/2 )
-            vs = []
-            ws = []
-            for sr in self._subRunsSameLumiBins:
-                chi2 = sr.fitResults[i]
-                vs.append( chi2.bestFit )
-                ws.append( 1.0/(chi2.bestFitError**2) )
-            vnp , wnp = np.array(vs) , np.array(ws)
-            _y.append( np.average(vnp , weights=wnp) )
-            _yerr.append( math.sqrt( np.average( (vnp-_y[-1])**2 , weights=wnp ) ) )
-        g = go.Figure() 
-        g.add_trace(go.Scatter(x=_x, y=_y,
-                        error_y=dict(type='data',array=_yerr,visible=True), mode='lines+markers',
-                                      marker_color=self.runColor) )
-        return g
+    
+    
+    
+    
     
     @property
     def nLumiBins(self) -> int:
@@ -1774,63 +1796,12 @@ class RunInfo :
     def filename(self) -> str:
         return '/eos/user/c/cmstandi/PURunIIFiles/R{0}/all.root'.format(self.run)
     
-    def aggregateFitRes4(self):
-        g = make_subplots(self.nLumiBins, cols=1)
-        g.update_layout(height=self.nLumiBins*400, width=1200, title_text="best xsection values per bin")
-        for i in range(self.nLumiBins):
-            lval = float(self.lumi_hists[i].max+self.lumi_hists[i].min)/2 
-
-            _x_y = {}
-            _x_yerr = {}
-            _x_yerr2 = {}
-            _x_w = {}
-            _x_corr = {}
-            _x_chi2 = {}
-            _x_diffBestAvg = {}
-            for x in range(self.nVarBins):
-                theX = self.data_hists[0].binRepresentatives[x]
-                _x_y[theX] = self.fitResults[i].Bins[x].bestFit
-                all_ys = [a.fitResults[i].Bins[x].bestFit for a in self._subRunsSameLumiBins if not a.fitResults[i].Bins[x].atBorder] # and a._obs/a._nTotal > 0.000003]
-
-                if len(all_ys)==0:
-                    all_ys.append(_x_y[theX])
-                avg = sum(all_ys)/len(all_ys)
-                y_max = max(all_ys)
-                y_min = min(all_ys)
-
-                _x_yerr[theX] = y_max - _x_y[theX]
-                _x_yerr2[theX] = _x_y[theX] - y_min
-                if y_min >  _x_y[theX] or  y_max < _x_y[theX] :
-                    #print('something wrong' , y_min , _x_y[x] , y_max)
-                    ...
-            _x = sorted(_x_y.keys())
-            _y = []
-            _yerr = []
-            _yerr2 = []
-            color = []
-            for x in _x:
-                _y.append(_x_y[x])
-                color.append(0)
-                _yerr.append(_x_yerr[x])
-                _yerr2.append(_x_yerr2[x])
-
-            g.add_trace(go.Scatter(x=_x, y=_y,
-                            error_y=dict(type='data',array=_yerr,visible=True , symmetric=False,arrayminus=_yerr2), mode='lines' , line_color=RunInfo.colorList()[i]) , row=i+1, col=1  )
-                                          #marker_color=color , marker_colorscale=RunInfo.colorscale , marker_colorbar = dict(title="correlation") ) )
-            g.add_shape(type="line",
-                        xref="x", yref="y",
-                        x0=min(_x), y0=self.fitResults[i].bestFit, x1=max(_x), y1=self.fitResults[i].bestFit,
-                        line=dict(color=RunInfo.colorList()[i+100],width=3)
-                        , col=1 , row=i+1)
-
-            g.add_shape(type="line",
-                        xref="x", yref="y",
-                        y0=min(self.xsecs), x0=self.data_hists[i].mean(), y1=max(self.xsecs), x1=self.data_hists[i].mean(),
-                        line=dict(color=RunInfo.colorList()[i+100],width=3)
-                        , col=1 , row=i+1)
-
-
-        return g
+    
+    
+    
+    
+    #summary3
+    
     
     def aggregateFitRes3(self):
         _x_y = {}
@@ -1900,4 +1871,94 @@ class RunInfo :
         g.add_trace(go.Scatter(x=_x, y=_y,
                         error_y=dict(type='data',array=_yerr,visible=True , symmetric=False,arrayminus=_yerr2), mode='markers',
                                       marker_color=color , marker_colorscale=RunInfo.colorscale , marker_colorbar = dict(title="correlation") ) )
+        
+        
+        
+        g.update_layout(
+        title="best fit for cross section (total runs) + correlation + error bar",
+        xaxis_title='Lumi Bin',
+        yaxis_title="Cross Section",
+        legend_title="Runs"
+        )
+        
+        
         return g
+
+    
+    
+    
+    #summary4
+    
+    
+    def aggregateFitRes4(self):
+        g = make_subplots(self.nLumiBins, cols=1,
+                         subplot_titles = ['Lumi bin = {0}'.format(i+1) for i in np.arange(len(self.lumi_hists))]
+                         )
+        g.update_layout(height=self.nLumiBins*400, width=1200, title_text="best xsection values per lumi bin",legend_title="Luminosity bins")
+        m = 1
+        for i in range(self.nLumiBins):
+            theName = "Lumi bin = {0}".format(m)
+            m += 1
+            lval = float(self.lumi_hists[i].max+self.lumi_hists[i].min)/2 
+
+            _x_y = {}
+            _x_yerr = {}
+            _x_yerr2 = {}
+            _x_w = {}
+            _x_corr = {}
+            _x_chi2 = {}
+            _x_diffBestAvg = {}
+            for x in range(self.nVarBins):
+                theX = self.data_hists[0].binRepresentatives[x]
+                _x_y[theX] = self.fitResults[i].Bins[x].bestFit
+                all_ys = [a.fitResults[i].Bins[x].bestFit for a in self._subRunsSameLumiBins if not a.fitResults[i].Bins[x].atBorder] # and a._obs/a._nTotal > 0.000003]
+
+                if len(all_ys)==0:
+                    all_ys.append(_x_y[theX])
+                avg = sum(all_ys)/len(all_ys)
+                y_max = max(all_ys)
+                y_min = min(all_ys)
+
+                _x_yerr[theX] = y_max - _x_y[theX]
+                _x_yerr2[theX] = _x_y[theX] - y_min
+                if y_min >  _x_y[theX] or  y_max < _x_y[theX] :
+                    #print('something wrong' , y_min , _x_y[x] , y_max)
+                    ...
+            _x = sorted(_x_y.keys())
+            _y = []
+            _yerr = []
+            _yerr2 = []
+            color = []
+            for x in _x:
+                _y.append(_x_y[x])
+                color.append(0)
+                _yerr.append(_x_yerr[x])
+                _yerr2.append(_x_yerr2[x])
+
+            g.add_trace(go.Scatter(x=_x, y=_y, name = theName , 
+                            error_y=dict(type='data',array=_yerr,visible=True , symmetric=False,arrayminus=_yerr2), mode='lines' , line_color=RunInfo.colorList()[i]) , row=i+1, col=1  )
+                                          #marker_color=color , marker_colorscale=RunInfo.colorscale , marker_colorbar = dict(title="correlation") ) )
+            g.add_shape(type="line",
+                        xref="x", yref="y",
+                        x0=min(_x), y0=self.fitResults[i].bestFit, x1=max(_x), y1=self.fitResults[i].bestFit,
+                        line=dict(color=RunInfo.colorList()[i+100],width=3)
+                        , col=1 , row=i+1)
+
+            g.add_shape(type="line",
+                        xref="x", yref="y",
+                        y0=min(self.xsecs), x0=self.data_hists[i].mean(), y1=max(self.xsecs), x1=self.data_hists[i].mean(),
+                        line=dict(color=RunInfo.colorList()[i+100],width=3)
+                        , col=1 , row=i+1)
+
+        
+        
+        
+        g.update_yaxes(title_text= "Cross Sections" )
+        g.update_xaxes(title_text="PU")
+        
+        return g
+    
+    
+    
+    
+    
